@@ -112,6 +112,26 @@ self-hosted LangSmith docs for a worked example.""",
 
 For online evaluation, register a run rule in the LangSmith Evaluators UI.
 Every new trace in the project will be scored automatically.""",
+
+    "tracing": """Turn on LangSmith tracing by setting three environment variables:
+
+```bash
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=lsv2_...
+LANGSMITH_PROJECT=my-project           # auto-created on first trace
+```
+
+Once those are set, every LangChain/LangGraph run is traced automatically —
+no code changes required.
+
+To trace an arbitrary Python function, use the `@traceable` decorator:
+```python
+from langsmith import traceable
+
+@traceable
+def my_step(query: str) -> str:
+    ...
+```""",
 }
 
 # Best practices the agent can recommend without caveat.
@@ -152,18 +172,24 @@ def lookup_concept(concept_name: str) -> str:
             lines.append(data["summary"])
             return "\n".join(lines)
     available = ", ".join(k.title() for k in CONCEPTS_DB.keys())
-    return f"Concept '{concept_name}' not found. Available concepts: {available}"
+    return (
+        f"Concept '{concept_name}' not found. Available concepts: {available}. "
+        "If this is a setup task rather than a concept, try get_setup_guide instead."
+    )
 
 
 @tool
 def get_setup_guide(topic: str) -> str:
-    """Get a setup or how-to guide for a LangChain ecosystem topic. Topics: installation, environment, deployment, evaluation."""
+    """Get a setup or how-to guide for a LangChain ecosystem topic. Topics: installation, environment, deployment, evaluation, tracing."""
     key = topic.lower().strip()
     for db_key, content in SETUP_GUIDES_DB.items():
         if key in db_key or db_key in key:
             return f"**{db_key.title()} guide:**\n\n{content}"
     available = ", ".join(SETUP_GUIDES_DB.keys())
-    return f"Topic '{topic}' not found. Available topics: {available}"
+    return (
+        f"Topic '{topic}' not found. Available topics: {available}. "
+        "If this topic is a concept rather than a setup task, try lookup_concept instead."
+    )
 
 
 @tool
