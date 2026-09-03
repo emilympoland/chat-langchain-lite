@@ -23,7 +23,10 @@ model = init_chat_model(
     model_provider=MODEL_CONFIG["provider"],
     base_url=MODEL_CONFIG["base_url"],
     api_key=os.environ["LANGSMITH_API_KEY_GATEWAY"],
-    max_tokens=300,
+    # 300 truncated multi-section documentation answers mid-code-block; response
+    # length is governed by the prompt's "keep responses tight" guidance, and
+    # this budget is only a backstop against runaway generations.
+    max_tokens=2000,
     temperature=0,
 )
 
