@@ -1,8 +1,9 @@
+import logging
 import os
 
 from langchain.agents import create_agent
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import AIMessageChunk, ToolMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
 from deepagents.middleware.filesystem import FilesystemMiddleware
@@ -24,6 +25,7 @@ SYSTEM_PROMPT = get_prompt()
 # baseline experiments against a more expensive model (Sonnet) for the
 # demo's cost/latency comparison.
 _DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+_LOGGER = logging.getLogger(__name__)
 
 
 def _model_id() -> str:
@@ -71,6 +73,15 @@ def _user_msg(question: str) -> dict:
 def invoke_agent(question: str, thread_id: str | None = None) -> dict:
     """Run the agent once. Returns {output, tools_called, messages}."""
     result = build_agent().invoke(_user_msg(question), _config(thread_id))
+    last_ai_message = next(
+        (m for m in reversed(result["messages"]) if isinstance(m, AIMessage)),
+        None,
+    )
+    if (
+        last_ai_message
+        and last_ai_message.response_metadata.get("stop_reason") == "max_tokens"
+    ):
+        _LOGGER.warning("Agent response stopped at max_tokens and may be truncated")
     output = next(
         (m.content for m in reversed(result["messages"])
          if isinstance(getattr(m, "content", None), str) and m.content),
