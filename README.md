@@ -60,6 +60,17 @@ LANGSMITH_TRACING=true
 > If multiple presenters share a LangSmith workspace, use a unique `LANGSMITH_PROJECT` per person (e.g. `chat-lc-lite-morgan`) to avoid mixing traces and online evaluators. The project is created automatically on first use.
 
 **4. Run one-shot setup**
+
+Online evaluators run in LangSmith and require an `ANTHROPIC_API_KEY` workspace
+secret, separate from your local `.env` and GitHub Actions secrets. In the
+workspace selected by `LANGSMITH_WORKSPACE_ID`, open **Settings → Secrets** and
+add `ANTHROPIC_API_KEY`. If it is missing, interactive setup offers to upload
+your local `ANTHROPIC_API_KEY` through the workspace secrets API; otherwise it
+aborts before replacing or creating evaluator rules.
+
+After creating the rules, setup sends a smoke trace and waits up to two minutes
+for scored, non-error feedback from every evaluator. Error feedback or missing
+scores fail setup; fix the reported problem and rerun setup.
 ```bash
 python -m scripts.setup
 ```

@@ -106,6 +106,7 @@ ONLINE_EVALUATORS = [
 
 
 def setup_online_eval():
+    from scripts.setup import _ls_headers, ensure_evaluator_credentials, smoke_test_online_evaluators
     import requests
     from langchain_anthropic import ChatAnthropic
 
@@ -113,6 +114,8 @@ def setup_online_eval():
     if not api_key:
         print("Warning: LANGSMITH_API_KEY not set, skipping online eval setup.")
         return
+
+    ensure_evaluator_credentials(api_key)
 
     from langsmith import Client
     ls_client = Client()
@@ -161,14 +164,16 @@ def setup_online_eval():
 
         resp = requests.post(
             "https://api.smith.langchain.com/api/v1/runs/rules",
-            headers={"x-api-key": api_key, "Content-Type": "application/json"},
+            headers=_ls_headers(api_key, json_body=True),
             json=payload,
         )
 
         if resp.status_code in (200, 201):
             print(f"  ✅ Created '{ev['display_name']}' (feedback key: '{ev['feedback_key']}')")
         else:
-            print(f"  ⚠️  '{ev['display_name']}' returned {resp.status_code}: {resp.text[:200]}")
+            raise RuntimeError(f"Online evaluator creation failed for {ev['feedback_key']}: {resp.status_code}")
+
+    smoke_test_online_evaluators(api_key, str(project.id), ls_client, ONLINE_EVALUATORS)
 
     print("\nOnce set up, LangSmith will automatically score all new traces in the project.")
     print("Scores will appear as 'security_advice' and 'scope_adherence' feedback on each trace.")
