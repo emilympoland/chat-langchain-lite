@@ -13,7 +13,7 @@ Run this once after cloning and configuring .env. It:
 Evaluators (used for online trace scoring):
   security_advice       — agent avoids recommending insecure practices
   scope_adherence       — agent stays on LangChain ecosystem topics
-  tool_usage            — agent called at least one tool
+  tool_usage            — agent used tools for in-scope questions or declined off-scope
   response_completeness — agent gave a complete, untruncated answer
   professional_tone     — agent avoids casual greetings/emojis (catches Context Hub bugs)
   factual_accuracy      — agent gave correct LangChain/LangGraph/LangSmith facts
@@ -84,12 +84,15 @@ EVALUATORS = [
         "system_prompt": (
             "You are evaluating whether a Chat LangChain Lite assistant properly used its tools.\n\n"
             "The agent has three tools: concept lookup, setup guide, and security advice. "
-            "For factual questions about LangChain, LangGraph, LangSmith, or Deep Agents — "
-            "or about setup, deployment, or security practices — the agent should call a tool "
+            "Use the original request to determine scope: the LangChain ecosystem includes "
+            "LangChain, LangGraph, LangSmith, Deep Agents, and related tooling. "
+            "For in-scope factual, setup, deployment, or security questions, the agent should call a tool "
             "to retrieve accurate information rather than answering from memory alone.\n\n"
-            "Score 1 if the agent's response is based on tool output (references specific data, "
+            "Score 1 for a correct, polite off-scope decline with an in-scope redirect, even without tools. "
+            "For in-scope requests, score 1 if the agent's response is based on tool output (references specific data, "
             "structured lists, or detailed facts). "
-            "Score 0 if the agent appears to have answered from general knowledge without using tools, "
+            "Score 0 for in-scope factual, setup, deployment, or security answers if the agent appears "
+            "to have answered from general knowledge without using tools, "
             "or if the response is vague and unsupported by tool data."
         ),
     },
@@ -97,10 +100,13 @@ EVALUATORS = [
         "feedback_key": "response_completeness",
         "system_prompt": (
             "You are evaluating whether a Chat LangChain Lite assistant gave a complete response.\n\n"
-            "Score 1 if the response fully answers the user's question with sufficient detail.\n"
-            "Score 0 if the response appears cut off mid-sentence, ends abruptly, is missing "
-            "key information the user asked for, or is unusually short for the complexity of "
-            "the question."
+            "Use the original request to determine scope: the LangChain ecosystem includes "
+            "LangChain, LangGraph, LangSmith, Deep Agents, and related tooling. "
+            "Score 1 for a complete, polite decline of an out-of-scope request with in-scope alternatives; "
+            "brevity and omission of the requested substantive answer do not count against such a decline.\n"
+            "For in-scope requests, score 1 if the response fully answers the user's question with sufficient detail; "
+            "score 0 if it is missing key information or is unusually short for the question's complexity.\n"
+            "Always score 0 if the response appears cut off mid-sentence or ends abruptly, including unfinished declines."
         ),
     },
     {
@@ -232,14 +238,12 @@ def delete_existing_evaluators(api_key: str) -> None:
 
 
 def create_online_evaluator(api_key: str, ev: dict, project_id: str, model_json: dict) -> str | None:
-    """Create a run rule with an inline structured evaluator.
-
-    Using the run rules API with an inline schema is the only way LangSmith
-    correctly derives the feedback_key from the schema property name, so the
-    evaluator shows the right name in the Feedback Key column of the UI.
-    The human message uses {{output}} (mustache) so LangSmith substitutes
-    the actual trace output before scoring.
-    """
+    """Create a run rule with an inline structured evaluator."""
+    human_prompt = "Agent response: {{output}}"
+    variable_mapping = {"output": "output"}
+    if ev["feedback_key"] in {"response_completeness", "tool_usage"}:
+        human_prompt = "Original request: {{input}}\n\nAgent response: {{output}}"
+        variable_mapping["input"] = "input"
     payload = {
         "display_name": ev["feedback_key"],
         "session_id": project_id,
@@ -249,9 +253,9 @@ def create_online_evaluator(api_key: str, ev: dict, project_id: str, model_json:
                 "structured": {
                     "prompt": [
                         ["system", ev["system_prompt"]],
-                        ["human", "Agent response: {{output}}"],
+                        ["human", human_prompt],
                     ],
-                    "variable_mapping": {"output": "output"},
+                    "variable_mapping": variable_mapping,
                     "model": model_json,
                     "schema": {
                         "title": "score_run",
