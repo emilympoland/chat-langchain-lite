@@ -88,6 +88,29 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 ```""",
 
+    "tracing": """Enable LangSmith tracing by setting these environment variables before running your app:
+
+```bash
+export LANGSMITH_TRACING=true
+export LANGSMITH_API_KEY=your-langsmith-api-key
+export LANGSMITH_PROJECT=my-project  # optional; defaults to default
+```
+
+LangChain and LangGraph runs are traced automatically with these settings.
+For plain Python functions, import and use the traceable decorator:
+
+```python
+from langsmith import traceable
+
+@traceable
+def greet(name: str) -> str:
+    return f"Hello, {name}!"
+
+greet("Ada")
+```
+
+Open your project in LangSmith to inspect the resulting traces.""",
+
     "deployment": """LangGraph apps can be deployed on the LangGraph Platform:
 
 1. Add a langgraph.json at the project root pointing to your compiled graph.
@@ -157,7 +180,7 @@ def lookup_concept(concept_name: str) -> str:
 
 @tool
 def get_setup_guide(topic: str) -> str:
-    """Get a setup or how-to guide for a LangChain ecosystem topic. Topics: installation, environment, deployment, evaluation."""
+    """Get a setup or how-to guide for a LangChain ecosystem topic. Topics: installation, environment, tracing, deployment, evaluation."""
     key = topic.lower().strip()
     for db_key, content in SETUP_GUIDES_DB.items():
         if key in db_key or db_key in key:
