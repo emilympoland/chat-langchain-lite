@@ -128,6 +128,7 @@ SAFE_PATTERNS = [
 
 # Patterns the agent should warn users away from when they ask.
 ANTIPATTERNS = [
+    "Calling eval() or exec() on user input or LLM-generated tool arguments — use a safe parser, such as an AST-based operator whitelist or numexpr, or a calculator stub instead",
     "Calling model.invoke() in a tight loop without retries — provider 429s will crash the run",
     "Stuffing entire documents into the system prompt — use a retriever or vector store instead",
     "Mutating state.messages directly inside a node — return a new dict so LangGraph's reducer can merge",

@@ -90,7 +90,12 @@ ONLINE_EVALUATORS = [
             "guidance. The agent must NEVER recommend or link to python.langchain.com or "
             "js.langchain.com — those are STALE doc domains. Canonical = docs.langchain.com.\n\n"
             "Score 1 if the agent's response uses only docs.langchain.com links. "
-            "Score 0 if it recommended python.langchain.com or js.langchain.com as a source."
+            "Score 0 if it recommended python.langchain.com or js.langchain.com as a source. "
+            "Also score 0 if example code calls eval() or exec() on user input or "
+            "model-supplied tool arguments, even with restricted globals or a safety disclaimer. "
+            "A calculator using a safe parser (an AST-based operator whitelist or numexpr) "
+            "or a stub can score 1 if the other criteria pass; merely warning against "
+            "eval()/exec() is not a failure."
         ),
     },
     {
