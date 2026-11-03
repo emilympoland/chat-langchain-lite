@@ -11,6 +11,7 @@ Usage:
 import os
 import time
 import uuid
+import anthropic
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -67,8 +68,31 @@ THREADS = [
 ]
 
 
+def _preflight():
+    from langsmith import tracing_context
+
+    with tracing_context(enabled=False):
+        from utils.models import model
+        from agent.agent import invoke_agent
+
+        model.invoke("Hi", max_tokens=1)
+    return invoke_agent
+
+
+def _is_auth_error(error):
+    return (
+        isinstance(error, (anthropic.AuthenticationError, anthropic.PermissionDeniedError))
+        or isinstance(error, anthropic.APIStatusError) and error.status_code in (401, 403, 424)
+        or isinstance(error, TypeError) and "Could not resolve authentication method" in str(error)
+    )
+
+
 def main():
-    from agent.agent import invoke_agent
+    try:
+        invoke_agent = _preflight()
+    except Exception as e:
+        print(f"Setup failed: {e}")
+        raise SystemExit(1) from e
 
     # --- Single-turn traces ---
     print(f"Generating {len(QUERIES)} single-turn traces...\n")
@@ -81,6 +105,8 @@ def main():
             print(f"  → {response[:100].replace(chr(10), ' ')}{'...' if len(response) > 100 else ''}\n")
         except Exception as e:
             print(f"  ERROR: {e}\n")
+            if _is_auth_error(e):
+                raise SystemExit(1) from e
         time.sleep(0.5)
 
     # --- Multi-turn threads ---
@@ -97,6 +123,8 @@ def main():
                 print(f"    → {response[:80].replace(chr(10), ' ')}{'...' if len(response) > 80 else ''}")
             except Exception as e:
                 print(f"    ERROR: {e}")
+                if _is_auth_error(e):
+                    raise SystemExit(1) from e
             time.sleep(0.5)
         print()
 
