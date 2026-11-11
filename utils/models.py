@@ -12,20 +12,25 @@ from langchain.chat_models import init_chat_model
 # --- OpenAI via the LangSmith LLM Gateway ---
 # Routes every model call through the LangSmith Gateway so that workspace
 # policies (PII / secrets / allow-lists / cost caps) are enforced.
-# MODEL_CONFIG is the single source the frontend's Gateway pane reads.
-MODEL_CONFIG = {
-    "model": "claude-sonnet-4-6",
-    "provider": "anthropic",
-    "base_url": "https://gateway.smith.langchain.com/anthropic",
-}
-model = init_chat_model(
-    model=MODEL_CONFIG["model"],
-    model_provider=MODEL_CONFIG["provider"],
-    base_url=MODEL_CONFIG["base_url"],
-    api_key=os.environ["LANGSMITH_API_KEY_GATEWAY"],
-    max_tokens=300,
-    temperature=0,
-)
+# The frontend's Gateway pane reads the same configuration as the agent.
+def get_model_config(model_id: str | None = None) -> dict:
+    return {
+        "model": model_id or os.getenv("CHAT_LANGCHAIN_LITE_MODEL") or "claude-haiku-4-5-20251001",
+        "provider": "anthropic",
+        "base_url": "https://gateway.smith.langchain.com/anthropic",
+    }
+
+
+def get_model(model_id: str | None = None):
+    config = get_model_config(model_id)
+    return init_chat_model(
+        model=config["model"],
+        model_provider=config["provider"],
+        base_url=config["base_url"],
+        api_key=os.environ["LANGSMITH_API_KEY_GATEWAY"],
+        max_tokens=300,
+        temperature=0,
+    )
 
 # --- Anthropic ---
 # model = init_chat_model("anthropic:claude-sonnet-4-5")
