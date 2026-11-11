@@ -62,6 +62,7 @@ from langsmith.schemas import FeedbackConfig
 from starlette.responses import PlainTextResponse, RedirectResponse
 
 from context import CONTEXT_HUB_REPO
+from utils.streaming import TRUNCATION_NOTICE
 
 load_dotenv(override=True)
 
@@ -883,6 +884,8 @@ async def stream(session, run: str = ""):
 
     async def gen():
         acc = ""
+        final_id = None
+        stop_reason = None
         if not run_id or not thread_id:
             yield sse_message("⚠️ Invalid run.", event="token")
             yield sse_message(
@@ -902,9 +905,17 @@ async def stream(session, run: str = ""):
                 msg = data[0]
                 if not isinstance(msg, dict) or msg.get("type") != "AIMessageChunk":
                     continue
+                if msg.get("id") != final_id:
+                    final_id = msg.get("id")
+                    stop_reason = None
+                metadata = msg.get("response_metadata") or {}
+                if "stop_reason" in metadata:
+                    stop_reason = metadata["stop_reason"]
                 acc += _msg_text(msg.get("content"))
                 if acc:
                     yield sse_message(acc, event="token")
+            if stop_reason == "max_tokens":
+                yield sse_message(acc + TRUNCATION_NOTICE, event="token")
         except Exception:
             # Each token frame replaces the bubble, so append to acc rather than
             # emitting the warning alone — otherwise a mid-stream failure would

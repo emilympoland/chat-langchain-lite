@@ -11,15 +11,17 @@ the agent's stream loop doesn't have to branch on provider.
 
 from typing import Iterable
 
-from langchain_core.messages import AIMessageChunk
+from langchain_core.messages import AIMessage
 
 
-def iter_text(chunk: AIMessageChunk) -> Iterable[str]:
-    """Yield the user-visible text fragments from one AIMessageChunk.
+TRUNCATION_NOTICE = (
+    "\n\n⚠️ This response is incomplete because it reached the output limit. "
+    "Please ask me to continue."
+)
 
-    Skips tool-use / thinking / image blocks. Returns nothing for chunks
-    that don't carry text (e.g. tool-call-only chunks).
-    """
+
+def iter_text(chunk: AIMessage) -> Iterable[str]:
+    """Yield user-visible text, skipping tool-use, thinking, and image blocks."""
     content = chunk.content
     if isinstance(content, str):
         if content:

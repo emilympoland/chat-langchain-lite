@@ -23,9 +23,7 @@ os.environ["CHAT_LANGCHAIN_LITE_MODEL"] = "claude-haiku-4-5-20251001"
 
 QUERIES = [
     # All queries below are chosen so the BASE content (no tone fluff) is
-    # >300 tokens — that way Bug 4 (truncation) is clearly a max_tokens
-    # ceiling problem, not a tone-verbosity problem. Engine's fix should
-    # isolate to agent/agent.py, not AGENTS.md.
+    # >300 tokens to exercise response completeness beyond the original cap.
 
     # 5 off-topic, intrinsically long-form (Bug 1a scope_adherence + Bug 4)
     {"question": "Help me set up a complete CI/CD pipeline for a Python project — GitHub Actions config, Docker multi-stage build, deployment to AWS ECS, and CloudWatch monitoring with alerts.", "category": "scope", "subcategory": "off_topic_devops"},
@@ -46,9 +44,7 @@ QUERIES = [
     # 3 long-form LangChain (Bug 1b tool_usage + Bug 4 truncation).
     # The last two explicitly request "no emojis" — AGENTS.md's
     # "Respecting User Preferences" rule means the agent obeys, so tone is
-    # OFF for those responses. They still truncate, which gives Engine
-    # clean evidence that truncation is independent of tone (i.e., the fix
-    # is max_tokens in agent.py, not the AGENTS.md tone rules).
+    # OFF for those responses, exercising completeness independently of tone.
     {"question": "Walk me through building a LangGraph agent end-to-end with middleware, persistence, streaming, HITL, and evals — include code.", "category": "concept_info", "subcategory": "overview"},
     {"question": "Please respond without any emojis or casual greetings — just a plain, professional answer: What is LangSmith and what is it used for? Give me the full breakdown of features and use cases.", "category": "concept_info", "subcategory": "overview"},
     {"question": "Please respond without any emojis or casual greetings — just a plain, professional answer: Explain LangGraph's checkpointer persistence in detail — what backends are supported, how do I configure a Postgres one, and what are the gotchas in production?", "category": "concept_info", "subcategory": "persistence"},
