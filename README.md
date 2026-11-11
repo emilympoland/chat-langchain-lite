@@ -215,7 +215,7 @@ context/
 
 agent/
 ├── tools.py          # concept lookup, setup guides, security advice (Bugs 2 & 3)
-└── agent.py          # create_agent + FilesystemMiddleware (Bug 4 — max_tokens)
+└── agent.py          # create_agent (Bug 4 — max_tokens)
 
 utils/
 └── context_hub.py    # setup-time push helper. Holds the *initial seed* for
