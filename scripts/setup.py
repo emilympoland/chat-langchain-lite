@@ -27,6 +27,7 @@ import json
 import os
 import sys
 import requests
+from anthropic import APIStatusError
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
@@ -138,6 +139,20 @@ EVALUATORS = [
 
 
 # ── Project bootstrap ──────────────────────────────────────────────────────────
+
+def check_gateway() -> None:
+    """Verify gateway model access before creating setup resources."""
+    try:
+        from utils.models import model
+        model.invoke("ping", max_tokens=1)
+    except APIStatusError as error:
+        from utils.models import gateway_error_message
+        print(gateway_error_message(error))
+        sys.exit(1)
+    except Exception as error:
+        print(f"LangSmith gateway preflight failed: {error}")
+        sys.exit(1)
+
 
 def ensure_project_exists() -> None:
     """Send one trace to create the LangSmith project before online evals are registered.
@@ -356,6 +371,8 @@ def main():
     if not api_key:
         print("Error: LANGSMITH_API_KEY not set.")
         sys.exit(1)
+
+    check_gateway()
 
     from utils.context_hub import push_agents_md, push_demo_skills
     push_agents_md()

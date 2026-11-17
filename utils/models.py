@@ -1,6 +1,8 @@
 """Centralized model initialization"""
 
 import os
+
+from anthropic import APIStatusError
 from dotenv import load_dotenv
 load_dotenv(dotenv_path="../.env", override=True)
 
@@ -40,3 +42,20 @@ model = init_chat_model(
 #     provider="anthropic",
 #     model_id="anthropic.claude-sonnet-4-20250514-v1:0",
 # )
+
+
+def gateway_error_message(error: APIStatusError) -> str:
+    """Describe provider failures without misidentifying unrelated errors."""
+    detail = str(error).lower()
+    if (
+        error.status_code == 424
+        and "anthropic_api_key" in detail
+        and "workspace" in detail
+        and "secret" in detail
+        and any(term in detail for term in ("missing", "not found", "does not exist", "could not find"))
+    ):
+        return (
+            "LangSmith gateway could not reach Anthropic: add workspace secret "
+            "ANTHROPIC_API_KEY in LangSmith Settings > Secrets"
+        )
+    return f"LangSmith gateway provider request failed: {error}"

@@ -51,11 +51,19 @@ cp .env.example .env
 Edit `.env`:
 ```
 ANTHROPIC_API_KEY=your-key
+LANGSMITH_API_KEY_GATEWAY=your-demo-gateway-key
 LANGSMITH_API_KEY=your-demo-workspace-api-key
 LANGSMITH_PROJECT=chat-lc-lite
 LANGSMITH_WORKSPACE_ID=your-demo-workspace-id
 LANGSMITH_TRACING=true
 ```
+
+The configured model uses the LangSmith gateway. Store an Anthropic provider key as
+`ANTHROPIC_API_KEY` in **LangSmith Settings > Secrets** for the gateway workspace.
+This workspace secret is separate from the local `ANTHROPIC_API_KEY` variable
+(which may hold gateway credentials for other scripts) and from local
+`LANGSMITH_API_KEY_GATEWAY`, which authenticates model calls to the gateway.
+A local variable does not create the workspace secret.
 
 > If multiple presenters share a LangSmith workspace, use a unique `LANGSMITH_PROJECT` per person (e.g. `chat-lc-lite-morgan`) to avoid mixing traces and online evaluators. The project is created automatically on first use.
 
@@ -64,7 +72,12 @@ LANGSMITH_TRACING=true
 python -m scripts.setup
 ```
 
-This does three things in one command:
+Setup first checks gateway model access with a one-token request and exits non-zero
+with a diagnostic if it fails, before creating project resources or evaluators.
+If the Anthropic workspace secret is missing, restoring it in LangSmith is required
+to restore model access; the preflight only detects and explains the failure.
+
+After a successful preflight, this does three things in one command:
 1. **Creates the LangSmith project** by sending one trace (required before online evaluators can be registered)
 2. **Creates the dataset** `chat-lc-lite-scope-<your-name>` with 3 curated test cases, then tags that version as `baseline` in LangSmith
 3. **Creates 6 online evaluators** in the LangSmith Evaluators UI at 100% sampling rate — every future trace is automatically scored for `security_advice`, `scope_adherence`, `tool_usage`, `response_completeness`, `professional_tone`, and `factual_accuracy`. Their run rule IDs are saved to `.demo_state.json` so cleanup can tell them apart from evaluators Engine adds.
@@ -155,7 +168,7 @@ LangGraph SDK on loopback — it never imports the graph directly.
 
 | Script | What it does |
 |--------|-------------|
-| `python -m scripts.setup` | One-shot setup: creates dataset and creates 6 online evaluators |
+| `python -m scripts.setup` | One-shot setup: checks gateway access, creates dataset and creates 6 online evaluators |
 | `python -m scripts.generate_traces` | Runs 11 single-turn queries + 1 multi-turn thread through the buggy agent |
 | `python -m scripts.run_evals` | Runs offline evals against the dataset and prints scores |
 | `python -m scripts.run_evals --skip-dataset` | Re-runs evals against existing dataset (used in CI) |

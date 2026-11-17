@@ -1,4 +1,7 @@
 import os
+import logging
+
+from anthropic import APIStatusError
 
 from langchain.agents import create_agent
 from langchain_anthropic import ChatAnthropic
@@ -11,7 +14,7 @@ from deepagents.backends.context_hub import ContextHubBackend
 from agent.tools import TOOLS
 from context import CONTEXT_HUB_REPO, get_prompt
 from utils.streaming import iter_text
-from utils.models import model
+from utils.models import gateway_error_message, model
 
 # AGENTS.md is the agent's system prompt — pulled fresh from LangSmith
 # Context Hub at module import.
@@ -19,6 +22,8 @@ from utils.models import model
 # `scripts/setup.py` (`push_agents_md()`). A prompt fix can be applied BOTH as a
 # PR to that seed AND to the live Context Hub.
 SYSTEM_PROMPT = get_prompt()
+
+_log = logging.getLogger(__name__)
 
 # Override with CHAT_LANGCHAIN_LITE_MODEL env var — used by setup.py to seed
 # baseline experiments against a more expensive model (Sonnet) for the
@@ -70,7 +75,13 @@ def _user_msg(question: str) -> dict:
 
 def invoke_agent(question: str, thread_id: str | None = None) -> dict:
     """Run the agent once. Returns {output, tools_called, messages}."""
-    result = build_agent().invoke(_user_msg(question), _config(thread_id))
+    try:
+        result = build_agent().invoke(_user_msg(question), _config(thread_id))
+    except APIStatusError as error:
+        diagnostic = gateway_error_message(error)
+        error.add_note(diagnostic)
+        _log.exception("%s", diagnostic)
+        raise
     output = next(
         (m.content for m in reversed(result["messages"])
          if isinstance(getattr(m, "content", None), str) and m.content),
