@@ -23,6 +23,7 @@ Usage:
     python -m scripts.setup --skip-baseline-experiments    # faster, no seed experiments
 """
 
+import copy
 import json
 import os
 import sys
@@ -137,6 +138,85 @@ EVALUATORS = [
 ]
 
 
+SCOPE_PROJECT_ID = "2099b370-87ee-4962-b6fd-eeca0b7a1093"
+_SCOPE_POLICY = (
+    "The assistant serves LangChain, LangGraph, LangSmith, Deep Agents, and related tooling. "
+    "LangChain-related integrations are in scope. Outside scope: generic CI/CD on "
+    "non-LangChain tools; Kubernetes/Jaeger infrastructure unrelated to LangSmith; "
+    "Django debugging or authentication; generic Python utilities; ML theory such as "
+    "transformer math; business plans/GTM strategy; standalone model or vector-database "
+    "comparisons.\n\n"
+    "Score 1 for a polite decline that identifies an out-of-scope request and redirects "
+    "to LangChain-relevant help. Offering an in-scope version, asking for code in that "
+    "context, or suggesting other resources does not invalidate that decline. "
+    "Do not require fulfillment of an out-of-scope request.\n\n"
+)
+SCOPE_EVALUATORS = [
+    {
+        "rule_id": "38837ac9-2edb-4e53-a797-2d5a3b520467",
+        "feedback_key": "correctness",
+        "system_prompt": _SCOPE_POLICY + (
+            "Evaluate correctness against the user request. For in-scope requests, score 1 "
+            "only for an accurate, sufficient answer; score 0 for factually incorrect, "
+            "incomplete, or truncated responses. Give concise reasoning."
+        ),
+    },
+    {
+        "rule_id": "765478bd-77ce-4acc-ab19-1d635d5bdfc9",
+        "feedback_key": "task_completion",
+        "system_prompt": _SCOPE_POLICY + (
+            "Evaluate task completion against the user request. For in-scope requests, "
+            "score 1 only when the requested task is fully and correctly completed; "
+            "score 0 for incorrect, incomplete, or truncated responses, even if the "
+            "completed portion is accurate. Give concise reasoning."
+        ),
+    },
+]
+
+
+def update_scope_evaluators(api_key: str, project_id: str) -> list:
+    """Update the two existing scope-sensitive judges without replacing their configuration."""
+    if project_id != SCOPE_PROJECT_ID:
+        return []
+    url = "https://api.smith.langchain.com/api/v1/runs/rules"
+    resp = requests.get(
+        url, headers=_ls_headers(api_key), params={"session_id": project_id},
+    )
+    resp.raise_for_status()
+    rules = {rule["id"]: rule for rule in resp.json()}
+    updates = []
+    for ev in SCOPE_EVALUATORS:
+        rule = rules[ev["rule_id"]]
+        if str(rule.get("session_id")) != project_id:
+            raise ValueError("Scope evaluator belongs to another project")
+        evaluators = copy.deepcopy(rule["evaluators"])
+        matches = [
+            item["structured"] for item in evaluators
+            if ev["feedback_key"] in item.get("structured", {}).get("schema", {}).get("properties", {})
+        ]
+        if len(matches) != 1:
+            raise ValueError(f"Expected one structured {ev['feedback_key']} evaluator")
+        structured = matches[0]
+        structured["prompt"] = [
+            ["system", ev["system_prompt"]],
+            ["human", "User request: {{input}}\n\nAssistant response: {{output}}"],
+        ]
+        structured["variable_mapping"] = {"input": "input", "output": "output"}
+        updates.append((rule, evaluators))
+    for rule, evaluators in updates:
+        resp = requests.patch(
+            f"{url}/{rule['id']}",
+            headers=_ls_headers(api_key, json_body=True),
+            json={
+                "display_name": rule["display_name"],
+                "sampling_rate": rule["sampling_rate"],
+                "evaluators": evaluators,
+            },
+        )
+        resp.raise_for_status()
+    return [rule["id"] for rule, _ in updates]
+
+
 # ── Project bootstrap ──────────────────────────────────────────────────────────
 
 def ensure_project_exists() -> None:
@@ -204,7 +284,9 @@ def delete_existing_evaluators(api_key: str) -> None:
     if resp.status_code == 200:
         for rule in resp.json():
             name = rule.get("display_name", "")
-            if name in our_keys or name.startswith("chat-lc-lite-demo-"):
+            if rule["id"] not in {ev["rule_id"] for ev in SCOPE_EVALUATORS} and (
+                name in our_keys or name.startswith("chat-lc-lite-demo-")
+            ):
                 requests.delete(
                     f"https://api.smith.langchain.com/api/v1/runs/rules/{rule['id']}",
                     headers=_ls_headers(api_key),
@@ -293,9 +375,8 @@ def setup_online_evaluators(api_key: str) -> list:
     project_id = get_project_id(ls_client, PROJECT_NAME)
     model_json = ChatAnthropic(model="claude-haiku-4-5-20251001").to_json()
 
+    our_rule_ids = update_scope_evaluators(api_key, project_id)
     delete_existing_evaluators(api_key)
-
-    our_rule_ids = []
     for ev in EVALUATORS:
         rule_id = create_online_evaluator(api_key, ev, project_id, model_json)
         if rule_id:
