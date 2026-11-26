@@ -177,6 +177,18 @@ Online evaluators run automatically on every trace as it arrives in LangSmith. T
 
 Six online evaluators are registered by `python -m scripts.setup`: `security_advice`, `scope_adherence`, `tool_usage`, `response_completeness`, `professional_tone`, and `factual_accuracy`.
 
+For project `2099b370-87ee-4962-b6fd-eeca0b7a1093`, setup also updates the existing
+`correctness` and `task_completion` rules in place with scope-aware decline rubrics.
+It preserves their rule IDs, playground settings, feedback schemas, and models;
+missing rules or unexpected schemas stop the update rather than creating duplicates.
+To deploy only these rubric updates, with LangSmith credentials configured:
+
+```bash
+python -c 'import os; from scripts.setup import update_scope_evaluators; update_scope_evaluators(os.environ["LANGSMITH_API_KEY"], "2099b370-87ee-4962-b6fd-eeca0b7a1093")'
+```
+
+Run setup configuration tests with `python -m unittest scripts.test_setup`.
+
 ## CI/CD
 
 `.github/workflows/evals.yml` runs automatically on every PR to `main`.
